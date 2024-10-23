@@ -90,11 +90,11 @@
 
 trajClas <- function(traj, vel, ang, mn, trajSt, tyr, nmL, smL , Nend, Nst, NFT, DateLine = FALSE){
 
-TrajEnd <- TrajFT <- TrajSt <- IntS <- BounS <- TrajClas <- raster(ang)
+TrajEnd <- TrajFT <- TrajSt <- IntS <- BounS <- TrajClas <- terra::rast(ang)
 
 # add cell ID to the data frame
 traj <- data.table(traj)
-traj$cid <- cellFromXY(ang, traj[,1:2])
+traj$cid <- terra::cellFromXY(ang, traj[,1:2])
 
 # A. Number of traj starting from each cell
 TrajSt[!is.na(ang[])] <- trajSt
@@ -114,16 +114,16 @@ TrajFT <- TrajFT - TrajEnd - TrajSt   # subtract traj starting and ending to get
 TrajFT[TrajFT[] < 0] <- 0   # to avoid negative values in ice covered cells
 
 # C. Identify cell location for internal sinks (groups of 4 endorheic cells with angles pointing inwards)
-ll <- data.table(xyFromCell(ang, 1:ncell(ang)))
+ll <- data.table(terra::xyFromCell(ang, 1:terra::ncell(ang)))
 ll[,1:2] <- ll[,1:2] + 0.1   # add small offset to the centroid
-a <- fourCellsFromXY(ang, as.matrix(ll[,1:2]))
+a <- raster::fourCellsFromXY(raster::stack(ang), as.matrix(ll[,1:2])) # Temporary - TODO: check terra equivalent
 a <- t(apply(a, 1, sort))
 # If date line crossing, correct sequences on date line
 if(DateLine == TRUE){
 a[seq(ncol(ang), by = ncol(ang), length = nrow(ang)),] <- t(apply(a[seq(ncol(ang), by = ncol(ang), length = nrow(ang)),], 1, function(x) {x[c(2,1,4,3)]}))
 }
 # Extract the angles for each group of 4 cells
-b <- matrix(raster::extract(ang, as.vector(a)), nrow = ncell(ang), ncol = 4, byrow = FALSE)
+b <- matrix(terra::extract(ang, as.vector(a)), nrow = terra::ncell(ang), ncol = 4, byrow = FALSE)
 ll[, c("c1", "c2", "c3", "c4", "ang1", "ang2", "ang3", "ang4") := data.frame(a, b)]
 # now look if the 4 angles point inwards (internal sink)
 ll[, c("d1", "d2", "d3", "d4") := .(((ang1 - 180)  *  (90 - ang1)), ((ang2 - 270)  *  (180 - ang2)), ((ang3 - 90)  *  (0 - ang3)), ((ang4 - 360)  *  (270 - ang4)))]
@@ -136,10 +136,10 @@ IntS[c(celdas[[1]], celdas[[2]], celdas[[3]], celdas[[4]])] <- 1
 
 # D. Identify cell location for boundary sinks (coastal cells which are disconected from cooler climates under warming or warmer climates under cooling)
 # detect coastal cells
-coast <- suppressWarnings(boundaries(vel, type = 'inner', asNA = TRUE))       # to avoid warning for coercing NAs via asNA = TRUE
+coast <- suppressWarnings(terra::boundaries(vel))       # to avoid warning for coercing NAs via asNA = TRUE # removed , type = 'inner', asNA = TRUE
 # make a list of vel values and SST values for each coastal cells and their marine neighbours
-cc <- na.omit(data.table(cid = 1:ncell(vel), coast = coast[]))
-ad <- adjacent(vel, cc$cid, 8, sorted = TRUE, include = TRUE) # matrix with adjacent cells
+cc <- na.omit(data.table(cid = 1:terra::ncell(vel), coast = coast[]))
+ad <- terra::adjacent(vel, cc$cid, 8, sorted = TRUE, include = TRUE) # matrix with adjacent cells
 ad <- data.table(coastal = ad[,1], adjacent = ad[,2], cvel = vel[ad[,1]], ctemp = mn[ad[,1]], atemp = mn[ad[,2]])
 # locate the sinks
 ad <- na.omit(ad[ad$cvel != 0,])      # remove cells with 0 velocity (ice) and with NA (land neighbours)
@@ -150,7 +150,7 @@ BounS[!is.na(vel)] <- 0
 BounS[unique(subset(j$coastal, j$V == TRUE))] <- 1
 
 # Total number of trajectories per cell and proportions per cell
-TrajTotal <- calc(stack(TrajSt, TrajFT, TrajEnd), sum, na.rm = TRUE)
+TrajTotal <- terra::app(c(TrajSt, TrajFT, TrajEnd), sum, na.rm = TRUE)
 TrajTotal[is.na(ang[])] <- NA
 PropTrajEnd <- (TrajEnd/TrajTotal)*100
 PropTrajFT <- (TrajFT/TrajTotal)*100
@@ -158,9 +158,9 @@ PropTrajSt <- (TrajSt/TrajTotal)*100
 
 # reclassify by traj length
 rclM <- matrix(c(0, (nmL/tyr), 1, (nmL/tyr), (smL/tyr), 2, (smL/tyr), Inf, 3), ncol=3, byrow=TRUE)
-v <- raster(vel)
+v <- terra::rast(vel)
 v[] <- abs(vel[])
-ClassMov <- reclassify(v, rclM)
+ClassMov <- terra::classify(v, rclM)
 
 # Classify the cells
 TrajClas[!is.na(vel)] <- 0
@@ -172,7 +172,7 @@ TrajClas[ClassMov[] == 2] <- 2
 TrajClas[IntS[] == 1] <- 3
 TrajClas[BounS[] == 1] <- 4
 # Classify remaining cells into sources(5), rel sinks(6), corridors(7), divergence(8) and convergence(9)
-d <- na.omit(data.table(cid = 1:ncell(TrajClas), val = TrajClas[]))
+d <- na.omit(data.table(cid = 1:terra::ncell(TrajClas), val = TrajClas[]))
 d <- d[val == 0, 1]
 d[, Nend := PropTrajEnd[d$cid]]
 d[, Nst := PropTrajSt[d$cid]]

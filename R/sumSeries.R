@@ -63,9 +63,9 @@
 #'
 #' @rdname sumSeries
 
-sumSeries <- function(r, p, yr0, l = nlayers(r), fun = function(x) colMeans(x, na.rm = TRUE), freqin = "months", freqout = "years"){
+sumSeries <- function(r, p, yr0, l = terra::nlyr(r), fun = function(x) colMeans(x, na.rm = TRUE), freqin = "months", freqout = "years"){
 # construct xts object
-m <- t(getValues(r))
+m <- t(terra::values(r))
 dates <- seq(as.Date(yr0), length = l, by = freqin)
 ts1 <- xts(m, order.by = dates)
 # subset for the period of interest
@@ -81,11 +81,11 @@ if(freqout == "other"){s <- fun(x)}
 # create raster stack
 r1 <- stack()
 for(i in 1:nrow(s)){
-r2 <- raster(r[[1]])
+r2 <- terra::rast(r[[1]])
 r2[] <-  as.numeric(s[i,])
-r1 <- addLayer(r1, r2)
+r1 <- c(r1, r2) #addLayer for c()
 }
-if(freqout != "other"){names(r1) <- seq(start(x), length = nlayers(r1), by = freqout)}
+if(freqout != "other"){names(r1) <- seq(start(x), length = terra::nlyr(r1), by = freqout)}
 return(r1)
 }
 

@@ -38,11 +38,11 @@
 gVoCC <- function(tempTrend, spatGrad){
 VoCC <- tempTrend[[1]]/spatGrad[[1]]
 # velocity angles have opposite direction to the spatial climatic gradient if warming and same direction (cold to warm) if cooling
-ind <- which(getValues(VoCC) > 0)
+ind <- which(terra::values(VoCC) > 0)
 VoCCang <- spatGrad[[2]]
 VoCCang[ind] <- spatGrad[[2]][ind] + 180
 VoCCang[] <- ifelse(VoCCang[] >= 360, VoCCang[] - 360, VoCCang[])
-output <- stack(VoCC,VoCCang)
+output <- c(VoCC, VoCCang)
 names(output) <- c("voccMag", "voccAng")
 return(output)
 }

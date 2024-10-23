@@ -34,15 +34,15 @@
 #' @rdname tempTrend
 
 tempTrend <- function(r, th) {
-y <- getValues(r)
+y <- terra::values(r)
 ocean <- which(rowSums(is.na(y))!= ncol(y))    # remove land cells
 y <- t(y[ocean, ])
 N <- apply(y, 2, function(x) sum(!is.na(x)))
 ind <- which(N >= th)
 y <- y[,ind]  # drop cells with less than th observations
 N <- apply(y, 2, function(x) sum(!is.na(x)))
-x <- matrix(nrow = nlayers(r), ncol = ncol(y))
-x[] <- 1:nlayers(r)
+x <- matrix(nrow = terra::nlyr(r), ncol = ncol(y))
+x[] <- 1:terra::nlyr(r)
 # put NA values into the x values so they correspond with y
 x1 <- y
 x1[!is.na(x1)] <- 1
@@ -61,11 +61,11 @@ SE <- suppressWarnings(sqrt((N*sres)/(N*sxx-sx^2)))
 Test <- slope/SE
 p <- mapply(function(x,y) (2*pt(abs(x), df = y-2, lower.tail = FALSE)), x = Test, y = N)
 
-slpTrends <- sigTrends <- seTrends <- raster(r[[1]])
+slpTrends <- sigTrends <- seTrends <- terra::rast(r[[1]])
 slpTrends[ocean[ind]] <- slope
 seTrends[ocean[ind]] <- SE
 sigTrends[ocean[ind]] <- p
-output <- stack(slpTrends,seTrends,sigTrends)
+output <- c(slpTrends,seTrends,sigTrends) #stack for c()
 names(output) <- c("slpTrends", "seTrends", "sigTrends")
 return(output)
 }

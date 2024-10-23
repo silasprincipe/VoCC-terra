@@ -54,7 +54,7 @@
 
 resTime <- function(pg, vel, areapg = NA){
 RT <- suppressWarnings(data.table(ID = sp::getSpPPolygonsIDSlots(pg)))
-RT[, v := raster::extract(vel, pg, small=TRUE, fun=mean, na.rm=TRUE)]
+RT[, v := terra::extract(vel, pg, fun=mean, na.rm=TRUE)] #small=TRUE removed
 # If not provided, calculate the area of the polygon
 if(all(is.na(areapg))){
 areapg <- geosphere::areaPolygon(pg)/1000000              # area polygon in km2

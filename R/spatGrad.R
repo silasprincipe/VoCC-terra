@@ -40,23 +40,23 @@
 #' @rdname spatGrad
 
 spatGrad <- function(r, th = -Inf, projected = FALSE){
-  if(raster::nlayers(r) > 1){r <- raster::calc(r, mean, na.rm=T)}
+  if(terra::nlyr(r) > 1){r <- terra::app(r, mean, na.rm=T)}
   # get resolution of the raster
-  re <- raster::res(r)
+  re <- terra::res(r)
   # Create a columns for focal and each of its 8 adjacent cells
-  y <- data.table(raster::adjacent(r, 1:ncell(r), directions = 8, pairs = TRUE))
-  y <- na.omit(y[, climFocal := getValues(r)[from]][order(from, to)])   # Get value for focal cell, order the table by raster sequence and omit NAs (land cells)
-  y[, clim := getValues(r)[to]] # Insert values for adjacent cells
-  y[, sy := rowFromCell(r, from)-rowFromCell(r, to)]  # Column to identify rows in the raster (N = 1, mid = 0, S = -1)
-  y[, sx := colFromCell(r, to)-colFromCell(r, from)]  # Same for columns (E = 1, mid = 0, W = -1)
+  y <- data.table(terra::adjacent(r, 1:terra::ncell(r), directions = 8, pairs = TRUE))
+  y <- na.omit(y[, climFocal := terra::values(r)[from]][order(from, to)])   # Get value for focal cell, order the table by raster sequence and omit NAs (land cells)
+  y[, clim := terra::values(r)[to]] # Insert values for adjacent cells
+  y[, sy := terra::rowFromCell(r, from)-terra::rowFromCell(r, to)]  # Column to identify rows in the raster (N = 1, mid = 0, S = -1)
+  y[, sx := terra::colFromCell(r, to)-terra::colFromCell(r, from)]  # Same for columns (E = 1, mid = 0, W = -1)
   y[sx > 1, sx := -1]   # Sort out the W-E wrap at the dateline, part I
   y[sx < -1, sx := 1]   # Sort out the W-E wrap at the dateline, part II
   y[, code := paste0(sx, sy)]    # Make a unique code for each of the eight neighbouring cells
   # Code cells with positions
   y[.(code = c("10","-10","-11","-1-1","11","1-1","01","0-1"), to = c("climE","climW","climNW","climSW","climNE","climSE","climN","climS")), on = "code", code := i.to]
   y <- dcast(y[,c("from","code","clim")], from ~ code, value.var = "clim")
-	y[, climFocal := getValues(r)[from]]   # Put climFocal back in
-  y[, LAT := yFromCell(r, from)]         # Add focal cell latitude
+	y[, climFocal := terra::values(r)[from]]   # Put climFocal back in
+  y[, LAT := terra::yFromCell(r, from)]         # Add focal cell latitude
 
 # Calculate individual spatial temperature gradients: grads (degC per km)
 # WE gradients difference in temperatures for each western and eastern pairs divided by the distance between the cells in each pair (corrected for  latitudinal distortion if unprojected)
@@ -97,11 +97,11 @@ spatGrad <- function(r, th = -Inf, projected = FALSE){
 	from <- data.table(1:ncell(r)) # Make ordered from cells
   y <- y[from]   # merge both
 
-  rAng <- rGrad <- raster::raster(r)
+  rAng <- rGrad <- terra::rast(r)
   rAng[y$from] <- y$angle
   rGrad[y$from] <- y$Grad
   rGrad[rGrad[] < th] <- th
-  output <- raster::stack(rGrad,rAng)
+  output <- c(rGrad,rAng)
   names(output) <- c("Grad", "Ang")
   return(output)
 

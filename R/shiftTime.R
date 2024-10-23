@@ -48,12 +48,12 @@ m1 <- ((yr1-yr0)*12)+ b
 m2 <- ((yr2-yr0)*12)+ b
 x3 <- r[[seq(m1, m2, by = 12)]]
 # slope
-x4 <- raster::mean((x3-x2)/2, na.rm = TRUE)
+x4 <- terra::mean((x3-x2)/2, na.rm = TRUE)
 
 # 3. seasonal shifts (month/year) converted to days per decade by multiplying by 10 years, 365.25 days per year and dividing by 12 months
 sShift <- (trend/x4)*(3652.5/12)
 sShift[sShift == Inf | sShift == -Inf] <- NA
-r2 <- raster::stack(trend, x4, sShift)
+r2 <- c(trend, x4, sShift) #change stack for c() method for terra
 names(r2) <- c("mTrend", "seaRate", "seaShift")
 return(r2)
 }
