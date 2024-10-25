@@ -79,7 +79,7 @@ if(freqout == "years"){s <- apply.yearly(x, fun)}
 if(freqout == "other"){s <- fun(x)}
 
 # create raster stack
-r1 <- stack()
+r1 <- rast()
 for(i in 1:nrow(s)){
 r2 <- terra::rast(r[[1]])
 r2[] <-  as.numeric(s[i,])
