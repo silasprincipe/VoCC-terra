@@ -90,7 +90,7 @@
 
 trajClas <- function(traj, vel, ang, mn, trajSt, tyr, nmL, smL , Nend, Nst, NFT, DateLine = FALSE){
 
-TrajEnd <- TrajFT <- TrajSt <- IntS <- BounS <- TrajClas <- terra::rast(ang)
+TrajEnd <- TrajFT <- TrajSt <- IntS <- BounS <- TrajClas <- terra::rast(ang, vals = NA)
 
 # add cell ID to the data frame
 traj <- data.table(traj)
@@ -115,15 +115,33 @@ TrajFT[TrajFT[] < 0] <- 0   # to avoid negative values in ice covered cells
 
 # C. Identify cell location for internal sinks (groups of 4 endorheic cells with angles pointing inwards)
 ll <- data.table(terra::xyFromCell(ang, 1:terra::ncell(ang)))
-ll[,1:2] <- ll[,1:2] + 0.1   # add small offset to the centroid
-a <- raster::fourCellsFromXY(raster::stack(ang), as.matrix(ll[,1:2])) # Temporary - TODO: check terra equivalent
-a <- t(apply(a, 1, sort))
+ll[, 1:2] <- ll[, 1:2] + (terra::res(ang)[1]/10)
+# This function is used to mimic the `fourCellsFromXY` function of `raster`
+# The target cell plus it righternmost cell + the two downline cells are get
+four_from_xy <- function(r, xy) {
+  tcells <- terra::cellFromXY(r, xy)
+  fmatrix <- matrix(ncol = 4, nrow = length(tcells))
+  mm <- matrix(nrow = 3, ncol = 3)
+  mm[] <- c(rep(0, 4), rep(1, 2), 0, rep(1, 2))
+  valuesad <- terra::adjacent(r, tcells, directions = mm)
+  valuesad <- apply(valuesad, 1, function(x){
+    if (sum(is.na(x)) >= 2) {
+      x[is.na(x)] <- x[!is.na(x)]
+    } else if (sum(is.na(x)) == 1) {
+      stop("Check four_from_xy function. Only 1 NA on row.")
+    }
+    sort(x)
+  }, simplify = F)
+  valuesad <- do.call("rbind", valuesad)
+  valuesad
+}
+a <- four_from_xy(ang, ll[, 1:2])
 # If date line crossing, correct sequences on date line
 if(DateLine == TRUE){
 a[seq(ncol(ang), by = ncol(ang), length = nrow(ang)),] <- t(apply(a[seq(ncol(ang), by = ncol(ang), length = nrow(ang)),], 1, function(x) {x[c(2,1,4,3)]}))
 }
 # Extract the angles for each group of 4 cells
-b <- matrix(terra::extract(ang, as.vector(a)), nrow = terra::ncell(ang), ncol = 4, byrow = FALSE)
+b <- matrix(terra::extract(ang, as.vector(a))[,1], nrow = terra::ncell(ang), ncol = 4, byrow = FALSE)
 ll[, c("c1", "c2", "c3", "c4", "ang1", "ang2", "ang3", "ang4") := data.frame(a, b)]
 # now look if the 4 angles point inwards (internal sink)
 ll[, c("d1", "d2", "d3", "d4") := .(((ang1 - 180)  *  (90 - ang1)), ((ang2 - 270)  *  (180 - ang2)), ((ang3 - 90)  *  (0 - ang3)), ((ang4 - 360)  *  (270 - ang4)))]
@@ -139,8 +157,9 @@ IntS[c(celdas[[1]], celdas[[2]], celdas[[3]], celdas[[4]])] <- 1
 coast <- suppressWarnings(terra::boundaries(vel))       # to avoid warning for coercing NAs via asNA = TRUE # removed , type = 'inner', asNA = TRUE
 # make a list of vel values and SST values for each coastal cells and their marine neighbours
 cc <- na.omit(data.table(cid = 1:terra::ncell(vel), coast = coast[]))
-ad <- terra::adjacent(vel, cc$cid, 8, sorted = TRUE, include = TRUE) # matrix with adjacent cells
-ad <- data.table(coastal = ad[,1], adjacent = ad[,2], cvel = vel[ad[,1]], ctemp = mn[ad[,1]], atemp = mn[ad[,2]])
+ad <- terra::adjacent(vel, cc$cid, 8, pairs = TRUE, include = TRUE) # matrix with adjacent cells
+ad <- ad[order(ad[,1], ad[,2]),]
+ad <- data.table(coastal = ad[, 1], adjacent = ad[, 2], cvel = vel[ad[, 1]][,1], ctemp = mn[ad[, 1]][,1], atemp = mn[ad[, 2]][,1])
 # locate the sinks
 ad <- na.omit(ad[ad$cvel != 0,])      # remove cells with 0 velocity (ice) and with NA (land neighbours)
 j <- ad[, ifelse(.SD$cvel > 0, all(.SD$ctemp <= .SD$atemp), all(.SD$ctemp >= .SD$atemp)), by = coastal]
@@ -172,7 +191,7 @@ TrajClas[ClassMov[] == 2] <- 2
 TrajClas[IntS[] == 1] <- 3
 TrajClas[BounS[] == 1] <- 4
 # Classify remaining cells into sources(5), rel sinks(6), corridors(7), divergence(8) and convergence(9)
-d <- na.omit(data.table(cid = 1:terra::ncell(TrajClas), val = TrajClas[]))
+d <- na.omit(data.table(cid = 1:terra::ncell(TrajClas), val = TrajClas[][,1]))
 d <- d[val == 0, 1]
 d[, Nend := PropTrajEnd[d$cid]]
 d[, Nst := PropTrajSt[d$cid]]
@@ -181,7 +200,7 @@ d$clas <- ifelse(d$Nend == 0, 5, ifelse(d$Nend > Nend & d$Nst < Nst, 6, ifelse(d
 TrajClas[d$cid] <- d$clas
 
 # return raster
-s <- stack(PropTrajEnd, PropTrajFT, PropTrajSt, ClassMov, IntS, BounS, TrajClas)
+s <- c(PropTrajEnd, PropTrajFT, PropTrajSt, ClassMov, IntS, BounS, TrajClas)
 names(s) <- c("PropEnd", "PropFT", "PropSt", "ClassL", "IntS", "BounS", "TrajClas")
 return(s)
 }
