@@ -97,13 +97,13 @@ voccTraj <- function(lonlat, vel, ang, mn, tyr, trajID = 1:nrow(lonlat), correct
 
     llold <- lonlat # Take a copy of lonlat (starting cell xy)
     resto <- which(remaining > 0)    # index with remaining active trajectories
-    fcells <- terra::cellFromXY(vel, llold)     # focal cells
+    fcells <- terra::cellFromXY(vel, llold[,1:2])     # focal cells
     # Extract lon and lat of landing point for the remaining active trajectories
     # limit the displacement to 2 cell lengths to reduce later the number of intermediate points
     dth <- max(terra::res(vel))*222000
     dis <- ifelse(dth < (abs(vel[fcells[resto]][,1])*remaining[resto]*1000), dth,(abs(vel[fcells[resto]][,1])*remaining[resto]*1000))
     lonlat[resto,] <- as.data.frame(geosphere::destPoint(llold[resto,], ang[fcells[resto]][,1], dis)) # distance input in meters. The function adjusts internally for -180-180 and pole crossings
-    tcells <- raster::cellFromXY(vel, lonlat)
+    tcells <- raster::cellFromXY(vel, lonlat[,1:2])
 
 # Step 1. where the trajectory is still in the same cell by tyr, it has terminated.
       # Flag those trajectories by resetting the reminding time to 0 to get them out of the next iteration.
@@ -371,7 +371,8 @@ voccTraj <- function(lonlat, vel, ang, mn, tyr, trajID = 1:nrow(lonlat), correct
 
 # prepare output
 trajIDs = rep(trajID,(length(llon)/nc)) # rep(initialcells,(length(llon)/nc))
-traj <- na.omit(data.frame(x = llon, y = llat, trajIDs = trajIDs))
+traj <- data.table::data.table(x = llon, y = llat, trajIDs = trajIDs)
+traj <- na.omit(traj)
 # remove duplicated points (to keep track of the trajectorie's ID all trajectories are repeated over iterations even if they had terminated)
 traj <- traj[!duplicated(traj),]
 
